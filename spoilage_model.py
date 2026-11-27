@@ -14,6 +14,8 @@ REQUIRED_COLUMNS = [
     "vibration"
 ]
 
+NUMERIC_COLUMNS = ["temperature", "humidity", "vibration"]
+
 
 def analyze_sensor_data():
     if not CSV_FILE.exists():
@@ -40,31 +42,42 @@ def analyze_sensor_data():
 
     print("\n--- Sensor Data Validation ---")
 
-    missing_values = df[REQUIRED_COLUMNS].isnull().sum()
-    print("Missing values in each column:")
-    print(missing_values)
-
     df["timestamp"] = pd.to_datetime(
         df["timestamp"], errors="coerce", utc=True
     )
 
-    for column in ["temperature", "humidity", "vibration"]:
+    for column in NUMERIC_COLUMNS:
         df[column] = pd.to_numeric(df[column], errors="coerce")
 
+    print("\n--- Missing Values Before Handling ---")
+    print(df[REQUIRED_COLUMNS].isnull().sum())
+
+    # Remove records without essential identification details.
+    initial_rows = len(df)
+    df = df.dropna(subset=["container_id", "commodity", "timestamp"])
+    removed_records = initial_rows - len(df)
+
+    # Replace missing sensor measurements with each column's median.
+    for column in NUMERIC_COLUMNS:
+        if df[column].notna().any():
+            median_value = df[column].median()
+            df[column] = df[column].fillna(median_value)
+
+    print("\n--- Missing Value Handling ---")
+    print("Records removed due to missing identifiers or timestamps:",
+          removed_records)
+
+    print("Remaining missing sensor values:")
+    print(df[NUMERIC_COLUMNS].isnull().sum())
+
+    # Check sensor measurement ranges.
     invalid_records = (
-        df["container_id"].isnull()
-        | df["commodity"].isnull()
-        | df["timestamp"].isnull()
-        | df["temperature"].isnull()
-        | df["humidity"].isnull()
-        | df["vibration"].isnull()
-        | ~df["humidity"].between(0, 100)
+        ~df["humidity"].between(0, 100)
         | (df["vibration"] < 0)
         | ~df["temperature"].between(-50, 100)
     )
 
-    print("Invalid records:", int(invalid_records.sum()))
-
+    print("Invalid sensor records:", int(invalid_records.sum()))
     df = df.loc[~invalid_records].copy()
 
     if df.empty:
