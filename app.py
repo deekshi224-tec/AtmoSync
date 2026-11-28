@@ -10,10 +10,6 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
-# -----------------------------------------------------------------------------
-# AtmoSync | Micro-Climate Arbitrage Analytics
-# Demo values are synthetic. Upload a CSV to work with your own shipment data.
-# -----------------------------------------------------------------------------
 
 st.set_page_config(
     page_title="AtmoSync | Climate Intelligence",
@@ -124,8 +120,10 @@ def make_demo_data() -> pd.DataFrame:
         rainfall = max(0, rng.gamma(1.3, 5.0) - 2)
         baseline = float(rng.integers(8, 42))
         transit = baseline * rng.uniform(.78, 1.35)
+        
         # Add a small number of deliberate anomaly cases so the demo makes
         # the high-risk workflow visible during a presentation.
+        
         if i in {4, 11, 18, 25, 32}:
             temp = max(temp, temp_threshold + 5.5)
             humidity = max(humidity, humidity_threshold + 20)
