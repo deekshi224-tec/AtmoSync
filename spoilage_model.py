@@ -16,6 +16,13 @@ REQUIRED_COLUMNS = [
 
 NUMERIC_COLUMNS = ["temperature", "humidity", "vibration"]
 
+# Configurable demonstration limits, not certified storage standards.
+ENVIRONMENT_LIMITS = {
+    "temperature": {"min": 2, "max": 25},
+    "humidity": {"min": 30, "max": 90},
+    "vibration": {"min": 0, "max": 3}
+}
+
 
 def analyze_sensor_data():
     if not CSV_FILE.exists():
@@ -52,25 +59,22 @@ def analyze_sensor_data():
     print("\n--- Missing Values Before Handling ---")
     print(df[REQUIRED_COLUMNS].isnull().sum())
 
-    # Remove records without essential identification details.
     initial_rows = len(df)
-    df = df.dropna(subset=["container_id", "commodity", "timestamp"])
+    df = df.dropna(
+        subset=["container_id", "commodity", "timestamp"]
+    )
     removed_records = initial_rows - len(df)
 
-    # Replace missing sensor measurements with each column's median.
     for column in NUMERIC_COLUMNS:
         if df[column].notna().any():
             median_value = df[column].median()
             df[column] = df[column].fillna(median_value)
 
     print("\n--- Missing Value Handling ---")
-    print("Records removed due to missing identifiers or timestamps:",
-          removed_records)
-
+    print("Records removed:", removed_records)
     print("Remaining missing sensor values:")
     print(df[NUMERIC_COLUMNS].isnull().sum())
 
-    # Check sensor measurement ranges.
     invalid_records = (
         ~df["humidity"].between(0, 100)
         | (df["vibration"] < 0)
@@ -94,13 +98,37 @@ def analyze_sensor_data():
     print("\n--- Average Humidity ---")
     print(df.groupby("container_id")["humidity"].mean().round(2))
 
-    # Demonstration threshold, not a validated avocado quality limit.
-    threshold = 25
-    df["temperature_alert"] = df["temperature"] > threshold
+    # Check each environmental measurement against configured limits.
+    print("\n--- Environmental Range Checks ---")
 
-    print("\n--- Temperature Alerts ---")
+    for column, limits in ENVIRONMENT_LIMITS.items():
+        below_limit = df[column] < limits["min"]
+        above_limit = df[column] > limits["max"]
+        alert = below_limit | above_limit
+
+        df[f"{column}_alert"] = alert
+
+        print(
+            f"{column.title()} alerts: {int(alert.sum())} "
+            f"(allowed demonstration range: "
+            f"{limits['min']} to {limits['max']})"
+        )
+
+    # Summarize environmental alerts for each container.
+    alert_columns = [f"{column}_alert" for column in NUMERIC_COLUMNS]
+
+    print("\n--- Container-wise Environmental Alerts ---")
     print(
-        df.groupby("container_id")["temperature_alert"]
+        df.groupby("container_id")[alert_columns]
+        .sum()
+        .astype(int)
+    )
+
+    print("\n--- Overall Environmental Risk ---")
+    df["total_alerts"] = df[alert_columns].sum(axis=1)
+
+    print(
+        df.groupby("container_id")["total_alerts"]
         .sum()
         .astype(int)
     )
